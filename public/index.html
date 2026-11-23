@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tinyasr console</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <span class="brand">tinyasr<span class="muted">/console</span></span>
+    <span id="state" class="state" data-s="idle">idle</span>
+    <span class="muted mono" id="rid" title="request_id"></span>
+    <label class="url">
+      <span class="sr">Server URL</span>
+      <input id="url" class="mono" spellcheck="false" autocomplete="off">
+    </label>
+  </header>
+
+  <main class="grid">
+    <section class="left">
+      <div class="panel controls">
+        <fieldset class="seg" id="src">
+          <legend class="sr">Audio source</legend>
+          <label><input type="radio" name="src" value="mic" checked><span>Mic</span></label>
+          <label><input type="radio" name="src" value="file"><span>File</span></label>
+        </fieldset>
+
+        <div class="row file-only">
+          <label class="field grow">
+            <span>Audio file</span>
+            <input type="file" id="file" accept="audio/*,video/*">
+          </label>
+          <label class="field">
+            <span>Pace</span>
+            <select id="pace">
+              <option value="1">1x</option>
+              <option value="2">2x</option>
+              <option value="0">max</option>
+            </select>
+          </label>
+        </div>
+        <p class="note" id="micnote" hidden>Mic needs a secure context (localhost or HTTPS). Use File mode here.</p>
+
+        <div class="row">
+          <fieldset class="field">
+            <legend>language_hint <span id="hintnone">none: server uses TINYASR_LANGS</span></legend>
+            <div class="chips">
+              <label><input type="checkbox" name="lang" value="ru"><span>ru</span></label>
+              <label><input type="checkbox" name="lang" value="en"><span>en</span></label>
+              <label><input type="checkbox" name="lang" value="uk"><span>uk</span></label>
+              <input id="hintx" class="mono hintx" spellcheck="false" autocomplete="off" placeholder="fr, de" aria-label="Custom language_hint codes, comma separated">
+            </div>
+          </fieldset>
+          <label class="field grow">
+            <span>eot_threshold <output id="thrv" class="mono">0.70</output></span>
+            <input type="range" id="thr" min="0" max="1" step="0.01" value="0.7">
+          </label>
+          <label class="field">
+            <span>eot_timeout_ms</span>
+            <input type="number" id="tmo" class="mono" min="100" max="60000" step="100" value="5000">
+          </label>
+        </div>
+
+        <code id="preview" class="preview mono"></code>
+
+        <div class="row actions">
+          <button id="start" class="primary">Start</button>
+          <button id="stop" disabled title="Send CloseStream and wait for the server to close">Stop</button>
+          <button id="abort" disabled title="Close the socket now">Abort</button>
+          <canvas id="level" width="240" height="28" aria-label="Input level"></canvas>
+        </div>
+        <p class="error" id="err" role="alert" hidden></p>
+      </div>
+
+      <dl class="metrics mono">
+        <div><dt>sent</dt><dd id="m-sent">0.0 s</dd></div>
+        <div><dt>msgs/s</dt><dd id="m-rate">0</dd></div>
+        <div><dt>gap</dt><dd id="m-gap">-</dd></div>
+        <div><dt>max gap</dt><dd id="m-maxgap">-</dd></div>
+        <div><dt>turns</dt><dd id="m-turns">0</dd></div>
+        <div><dt>close→final</dt><dd id="m-final">-</dd></div>
+        <div><dt>close</dt><dd id="m-close">-</dd></div>
+      </dl>
+
+      <ol class="turns" id="turns">
+        <li class="empty">Pick a source and press Start. Turns appear here.</li>
+      </ol>
+    </section>
+
+    <section class="right panel">
+      <div class="logbar">
+        <span class="title">Event log</span>
+        <label class="tog"><input type="checkbox" id="showhb"><span>heartbeats</span></label>
+        <details class="filters">
+          <summary>filter</summary>
+          <div id="filters">
+            <label><input type="checkbox" value="client" checked>client</label>
+            <label><input type="checkbox" value="Connected" checked>Connected</label>
+            <label><input type="checkbox" value="StartOfTurn" checked>StartOfTurn</label>
+            <label><input type="checkbox" value="Update" checked>Update</label>
+            <label><input type="checkbox" value="EndOfTurn" checked>EndOfTurn</label>
+            <label><input type="checkbox" value="Error" checked>Error</label>
+            <label><input type="checkbox" value="other" checked>other</label>
+          </div>
+        </details>
+        <span class="spacer"></span>
+        <button id="dl" class="small">Download JSONL</button>
+        <button id="clear" class="small">Clear</button>
+      </div>
+      <div class="log mono" id="log" role="log" aria-live="off"></div>
+    </section>
+  </main>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

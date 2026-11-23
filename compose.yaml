@@ -1,0 +1,24 @@
+services:
+  tinyasr:
+    # latest: every model inside, no network at start. slim: fetches the configured models at start
+    # (kept in the container, so only a recreated container fetches again).
+    image: ghcr.io/rebel028/tinyasr-server:${TINYASR_TAG:-latest}
+    ports:
+      - "8000:8000" # the browser connects here directly, so it must be published
+    environment:
+      TINYASR_MODEL: ${TINYASR_MODEL:-/models/en-ru-uk.tzf}
+      TINYASR_LANGS: ${TINYASR_LANGS:-en,ru,uk} # every language of the default model
+      TINYASR_LID: ${TINYASR_LID:-} # /models/tinylid.bin: EndOfTurn `languages` from tinylid
+      # no TINYASR_TOKEN: a browser websocket cannot send the Authorization header
+    healthcheck:
+      start_period: 10m # the image allows 120 s; a slim fetch on a slow network can take longer
+    restart: unless-stopped
+
+  ui:
+    build: .
+    ports:
+      - "8080:80"
+    depends_on:
+      tinyasr:
+        condition: service_healthy # with slim this waits for the model fetch
+    restart: unless-stopped

@@ -1,4 +1,5 @@
 # tinyasr-console
+<img width="1669" height="1003" alt="image" src="https://github.com/user-attachments/assets/57cf4cb9-77e4-4e8c-8261-f5284dee9eb5" />
 
 A browser console for [tinyasr-server](https://github.com/Rebel028/tinyasr-server). It streams microphone or file audio to `/v2/listen` and shows the turns along with the raw event log of the websocket.
 

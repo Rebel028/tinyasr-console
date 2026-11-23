@@ -1,4 +1,4 @@
-# tinyasr-server-ui
+# tinyasr-console
 
 A browser console for [tinyasr-server](https://github.com/Rebel028/tinyasr-server). It streams microphone or file audio to `/v2/listen` and shows the turns along with the raw event log of the websocket.
 

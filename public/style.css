@@ -134,6 +134,7 @@ button.small { padding: 3px 10px; min-height: 26px; font-size: 12px; }
 .turns .meta { font: 12px var(--mono); color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
 .turns .open .text { color: var(--muted); }
 .turns .open .idx { color: var(--accent); }
+.turns .eager .idx { color: var(--warn); }
 .turns .empty { display: block; color: var(--muted); }
 .trig-model { color: var(--accent); }
 .trig-timeout { color: var(--warn); }
@@ -158,7 +159,7 @@ button.small { padding: 3px 10px; min-height: 26px; font-size: 12px; }
 .log { flex: 1; overflow-y: auto; font-size: 12.5px; padding: 4px 0; }
 .log details { border-bottom: 1px solid #16181b; }
 .log summary {
-  display: grid; grid-template-columns: 92px 14px 104px 1fr auto; gap: 8px;
+  display: grid; grid-template-columns: 92px 14px 112px 1fr auto; gap: 8px;
   padding: 3px 16px; cursor: pointer; list-style: none; white-space: nowrap;
 }
 .log summary::-webkit-details-marker { display: none; }
@@ -170,6 +171,7 @@ button.small { padding: 3px 10px; min-height: 26px; font-size: 12px; }
 .log .n { color: var(--dim); }
 .log .k-StartOfTurn .ty, .log .k-EndOfTurn .ty, .log .k-Connected .ty { color: var(--accent); }
 .log .k-EndOfTurn .sum { color: var(--text); }
+.log .k-EagerEndOfTurn .ty, .log .k-TurnResumed .ty { color: var(--warn); }
 .log .k-Update .sum { color: var(--muted); }
 .log .k-Error .ty, .log .k-Error .sum { color: var(--bad); }
 .log .k-client .ty { color: var(--warn); }

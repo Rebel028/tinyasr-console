@@ -3,11 +3,11 @@ const $ = (id) => document.getElementById(id);
 const RATE = 16000, FRAME = 640, FRAME_MS = 40, BYTES_PER_S = RATE * 2;
 const TAIL_SILENCE_S = 2; // after a file, so the server can find the end of the last turn
 const MAX_ROWS = 3000;
-const KINDS = new Set(["Connected", "StartOfTurn", "Update", "EndOfTurn", "Error"]);
+const KINDS = new Set(["Connected", "StartOfTurn", "Update", "EndOfTurn", "EagerEndOfTurn", "TurnResumed", "Error"]);
 
 const ui = {
   url: $("url"), start: $("start"), stop: $("stop"), abort: $("abort"), file: $("file"), pace: $("pace"),
-  thr: $("thr"), thrv: $("thrv"), tmo: $("tmo"), preview: $("preview"), err: $("err"), state: $("state"),
+  thr: $("thr"), thrv: $("thrv"), tmo: $("tmo"), eager: $("eager"), preview: $("preview"), err: $("err"), state: $("state"),
   rid: $("rid"), turns: $("turns"), log: $("log"), showhb: $("showhb"), level: $("level"),
 };
 
@@ -33,10 +33,17 @@ function buildUrl() {
   }
   for (const h of hints) u.searchParams.append("language_hint", h);
   $("hintnone").hidden = hints.length > 0;
-  u.searchParams.set("eot_threshold", Number(ui.thr.value).toFixed(2));
+  const thr = Number(ui.thr.value).toFixed(2);
+  u.searchParams.set("eot_threshold", thr);
   const tmo = Math.round(Number(ui.tmo.value));
   if (!(tmo >= 100 && tmo <= 60000)) throw new Error("eot_timeout_ms must be 100 to 60000");
   u.searchParams.set("eot_timeout_ms", String(tmo));
+  if (ui.eager.value !== "" || ui.eager.validity.badInput) { // empty: off, the parameter is left out
+    const eager = Number(Number(ui.eager.value).toFixed(2)); // validate what is sent; bad input reads as "" -> 0
+    if (!(eager >= 0.3 && eager <= 0.9)) throw new Error("eager_eot_threshold must be 0.3 to 0.9, or empty for off");
+    if (eager > Number(thr)) throw new Error(`eager_eot_threshold must not be above eot_threshold (${thr})`);
+    u.searchParams.set("eager_eot_threshold", eager.toFixed(2));
+  }
   return u.toString();
 }
 
@@ -68,7 +75,7 @@ function describe(ev) {
   if (m?.type === "TurnInfo") {
     const eot = m.event === "EndOfTurn";
     let sum = `#${m.turn_index} ${m.transcript || "(empty)"}`;
-    if (eot) sum += `  p=${Number(m.end_of_turn_confidence).toFixed(3)} ${m.trigger ?? ""}`;
+    if (eot || m.event === "EagerEndOfTurn") sum += `  p=${Number(m.end_of_turn_confidence).toFixed(3)} ${m.trigger ?? ""}`;
     const fold = m.event === "Update" && !ui.showhb.checked ? `u|${m.turn_index}|${m.transcript}` : null;
     return { kind: KINDS.has(m.event) ? m.event : "other", ty: m.event, sum, fold };
   }
@@ -149,7 +156,7 @@ function newSession() {
   s = { bytes: 0, inTimes: [], lastIn: 0, maxGap: 0, eots: 0, tClose: 0, tFinal: 0, opened: false, turns: new Map() };
   ui.turns.innerHTML = '<li class="empty">Waiting for speech.</li>';
   ui.rid.textContent = "";
-  $("m-close").textContent = "-"; $("m-final").textContent = "-";
+  $("m-close").textContent = "-"; $("m-final").textContent = "-"; $("m-lag").textContent = "-"; $("m-drop").textContent = "-";
 }
 
 function tick() {
@@ -177,10 +184,15 @@ function onTurn(m) {
     s.turns.set(m.turn_index, li);
     ui.turns.append(li);
   }
-  li.className = eot ? "" : "open";
+  // EagerEndOfTurn marks the open turn as tentatively ended until TurnResumed or EndOfTurn; heartbeats keep the mark
+  if (m.event === "EagerEndOfTurn") li.dataset.eager = Number(m.end_of_turn_confidence).toFixed(3);
+  else if (eot || m.event === "TurnResumed") delete li.dataset.eager;
+  li.className = eot ? "" : li.dataset.eager ? "open eager" : "open";
   li.children[1].textContent = m.transcript || "…";
   const meta = [`${Number(m.audio_window_start).toFixed(2)}-${Number(m.audio_window_end).toFixed(2)} s`];
   if (eot) meta.push(`p=${Number(m.end_of_turn_confidence).toFixed(3)}`);
+  if (eot && m.silence_ms != null) meta.push(`silence ${m.silence_ms} ms`);
+  if (li.dataset.eager) meta.push(`eager p=${li.dataset.eager}`);
   if (m.languages?.length) meta.push(m.languages.join(","));
   li.children[2].textContent = meta.join("   ");
   if (eot && m.trigger) {
@@ -280,7 +292,11 @@ async function start() {
     try { m = JSON.parse(e.data); } catch { /* keep raw text */ }
     record({ dir: "in", type: m?.type ?? "text", data: m });
     if (m?.type === "Connected") ui.rid.textContent = m.request_id;
-    if (m?.type === "TurnInfo") onTurn(m);
+    if (m?.type === "TurnInfo") {
+      onTurn(m);
+      if (m.lag_ms != null) $("m-lag").textContent = `${m.lag_ms} ms`; // absent on servers without these fields
+      if (m.dropped_ms != null) $("m-drop").textContent = `${m.dropped_ms} ms`;
+    }
     if (m?.type === "TurnInfo" && m.event === "EndOfTurn") {
       s.eots++;
       if (s.tClose) { s.tFinal = now; $("m-final").textContent = `${Math.round(now - s.tClose)} ms`; }
@@ -303,8 +319,11 @@ async function start() {
 async function explainRefusal(url) {
   const h = new URL(url); h.protocol = h.protocol === "wss:" ? "https:" : "http:"; h.pathname = "/health"; h.search = "";
   try {
-    await fetch(h, { mode: "no-cors", cache: "no-store" });
-    showErr("Server is up but refused the upgrade: bad params (400), auth on (401) or full (503). Browsers do not show which one; check the server log.");
+    // shortcut: the server sends no CORS headers, so the /health body is readable only from the same origin (a proxy); else fall back to an opaque probe
+    const r = await fetch(h, { cache: "no-store" }).catch(() => fetch(h, { mode: "no-cors", cache: "no-store" }));
+    const b = r.type === "opaque" ? null : await r.json().catch(() => null);
+    showErr("Server is up but refused the upgrade: bad params (400), auth on (401) or full (503). Browsers do not show which one; check the server log."
+      + (r.status === 503 && b?.reason ? ` Also, /health reports ${b.status}: ${b.reason}` : ""));
   } catch {
     showErr(`Cannot reach ${h.host}. Is tinyasr-server running and the port published?`);
   }

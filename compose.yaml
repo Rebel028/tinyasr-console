@@ -9,6 +9,7 @@ services:
       TINYASR_MODEL: ${TINYASR_MODEL:-/models/en-ru-uk.tzf}
       TINYASR_LANGS: ${TINYASR_LANGS:-en,ru,uk} # every language of the default model
       TINYASR_LID: ${TINYASR_LID:-} # /models/tinylid.bin: EndOfTurn `languages` from tinylid
+      TINYASR_TRACE: ${TINYASR_TRACE:-} # 1: one timing line per second per session in the server log (newer servers)
       # no TINYASR_TOKEN: a browser websocket cannot send the Authorization header
     healthcheck:
       start_period: 10m # the image allows 120 s; a slim fetch on a slow network can take longer
